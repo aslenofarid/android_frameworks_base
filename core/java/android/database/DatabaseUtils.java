@@ -16,6 +16,7 @@
 
 package android.database;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UnsupportedAppUsage;
 import android.content.ContentValues;
@@ -292,7 +293,9 @@ public class DatabaseUtils {
                             res.append(((Boolean) arg).booleanValue() ? 1 : 0);
                         } else {
                             res.append('\'');
-                            res.append(arg.toString());
+                            // Escape single quote character while appending the string and reject
+                            // invalid unicode.
+                            res.append(escapeSingleQuoteAndRejectInvalidUnicode(arg.toString()));
                             res.append('\'');
                         }
                         break;
@@ -303,6 +306,37 @@ public class DatabaseUtils {
                 before = c;
             }
         }
+        return res.toString();
+    }
+
+    private static String escapeSingleQuoteAndRejectInvalidUnicode(@NonNull String target) {
+        final int len = target.length();
+        final StringBuilder res = new StringBuilder(len);
+        boolean lastHigh = false;
+
+        for (int i = 0; i < len; ) {
+            final char c = target.charAt(i++);
+
+            if (lastHigh != Character.isLowSurrogate(c)) {
+                Log.e(TAG, "Invalid surrogate in string " + target);
+                throw new IllegalArgumentException("Invalid surrogate in string " + target);
+            }
+
+            lastHigh = Character.isHighSurrogate(c);
+
+            // Escape the single quotes by duplicating them
+            if (c == '\'') {
+                res.append(c);
+            }
+
+            res.append(c);
+        }
+
+        if (lastHigh) {
+            Log.e(TAG, "Invalid surrogate in string " + target);
+            throw new IllegalArgumentException("Invalid surrogate in string " + target);
+        }
+
         return res.toString();
     }
 
@@ -429,17 +463,31 @@ public class DatabaseUtils {
      */
     public static void appendEscapedSQLString(StringBuilder sb, String sqlString) {
         sb.append('\'');
-        if (sqlString.indexOf('\'') != -1) {
-            int length = sqlString.length();
-            for (int i = 0; i < length; i++) {
-                char c = sqlString.charAt(i);
-                if (c == '\'') {
-                    sb.append('\'');
+        int length = sqlString.length();
+        for (int i = 0; i < length; i++) {
+            char c = sqlString.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                if (i == length - 1) {
+                    continue;
                 }
-                sb.append(c);
+                if (Character.isLowSurrogate(sqlString.charAt(i + 1))) {
+                    // add them both
+                    sb.append(c);
+                    sb.append(sqlString.charAt(i + 1));
+                    continue;
+                } else {
+                    // this is a lone surrogate, skip it
+                    continue;
+                }
             }
-        } else
-            sb.append(sqlString);
+            if (Character.isLowSurrogate(c)) {
+                continue;
+            }
+            if (c == '\'') {
+                sb.append('\'');
+            }
+            sb.append(c);
+        }
         sb.append('\'');
     }
 

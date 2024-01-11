@@ -1715,7 +1715,8 @@ class RecentTasks {
     /**
      * Creates a new RecentTaskInfo from a TaskRecord.
      */
-    ActivityManager.RecentTaskInfo createRecentTaskInfo(TaskRecord tr, boolean getTasksAllowed) {
+    ActivityManager.RecentTaskInfo createRecentTaskInfo(TaskRecord tr,
+            boolean getTasksAllowed) {
         ActivityManager.RecentTaskInfo rti = new ActivityManager.RecentTaskInfo();
         tr.fillTaskInfo(rti);
         // Fill in some deprecated values

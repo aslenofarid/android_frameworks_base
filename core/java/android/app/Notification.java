@@ -18,6 +18,7 @@ package android.app;
 
 import static android.annotation.Dimension.DP;
 import static android.graphics.drawable.Icon.TYPE_BITMAP;
+import static android.graphics.drawable.Icon.TYPE_URI;
 
 import static com.android.internal.util.ContrastColorUtil.satisfiesTextContrast;
 
@@ -1789,6 +1790,10 @@ public class Notification implements Parcelable
             }
         }
 
+        private void visitUris(@NonNull Consumer<Uri> visitor) {
+            visitIconUri(visitor, getIcon());
+        }
+
         @Override
         public Action clone() {
             return new Action(
@@ -2434,6 +2439,14 @@ public class Notification implements Parcelable
         }
     }
 
+    private static void visitIconUri(@NonNull Consumer<Uri> visitor, @Nullable Icon icon) {
+        if (icon == null) return;
+        final int iconType = icon.getType();
+        if (iconType == TYPE_URI) {
+            visitor.accept(icon.getUri());
+        }
+    }
+
     /**
      * Note all {@link Uri} that are referenced internally, with the expectation
      * that Uri permission grants will need to be issued to ensure the recipient
@@ -2442,6 +2455,10 @@ public class Notification implements Parcelable
      * @hide
      */
     public void visitUris(@NonNull Consumer<Uri> visitor) {
+        if (publicVersion != null) {
+            publicVersion.visitUris(visitor);
+        }
+
         visitor.accept(sound);
 
         if (tickerView != null) tickerView.visitUris(visitor);
@@ -2449,19 +2466,49 @@ public class Notification implements Parcelable
         if (bigContentView != null) bigContentView.visitUris(visitor);
         if (headsUpContentView != null) headsUpContentView.visitUris(visitor);
 
+        visitIconUri(visitor, mSmallIcon);
+        visitIconUri(visitor, mLargeIcon);
+
+        if (actions != null) {
+            for (Action action : actions) {
+                action.visitUris(visitor);
+            }
+        }
+
         if (extras != null) {
+            visitIconUri(visitor, extras.getParcelable(EXTRA_LARGE_ICON_BIG));
+
             visitor.accept(extras.getParcelable(EXTRA_AUDIO_CONTENTS_URI));
             if (extras.containsKey(EXTRA_BACKGROUND_IMAGE_URI)) {
                 visitor.accept(Uri.parse(extras.getString(EXTRA_BACKGROUND_IMAGE_URI)));
             }
-        }
 
-        if (MessagingStyle.class.equals(getNotificationStyle()) && extras != null) {
+            ArrayList<Person> people = extras.getParcelableArrayList(EXTRA_PEOPLE_LIST);
+            if (people != null && !people.isEmpty()) {
+                for (Person p : people) {
+                    if (p.getIconUri() != null) {
+                        visitor.accept(p.getIconUri());
+                    }
+                }
+            }
+
+            // Extras for MessagingStyle. We visit them even if not isStyle(MessagingStyle), since
+            // Notification Listeners might use directly (without the isStyle check).
+            final Person person = extras.getParcelable(EXTRA_MESSAGING_PERSON);
+            if (person != null && person.getIconUri() != null) {
+                visitor.accept(person.getIconUri());
+            }
+
             final Parcelable[] messages = extras.getParcelableArray(EXTRA_MESSAGES);
             if (!ArrayUtils.isEmpty(messages)) {
                 for (MessagingStyle.Message message : MessagingStyle.Message
                         .getMessagesFromBundleArray(messages)) {
                     visitor.accept(message.getDataUri());
+
+                    Person senderPerson = message.getSenderPerson();
+                    if (senderPerson != null && senderPerson.getIconUri() != null) {
+                        visitor.accept(senderPerson.getIconUri());
+                    }
                 }
             }
 
@@ -2470,8 +2517,22 @@ public class Notification implements Parcelable
                 for (MessagingStyle.Message message : MessagingStyle.Message
                         .getMessagesFromBundleArray(historic)) {
                     visitor.accept(message.getDataUri());
+
+                    Person senderPerson = message.getSenderPerson();
+                    if (senderPerson != null && senderPerson.getIconUri() != null) {
+                        visitor.accept(senderPerson.getIconUri());
+                    }
                 }
             }
+        }
+
+        if (mBubbleMetadata != null) {
+            visitIconUri(visitor, mBubbleMetadata.getIcon());
+        }
+
+        if (extras != null && extras.containsKey(WearableExtender.EXTRA_WEARABLE_EXTENSIONS)) {
+            WearableExtender extender = new WearableExtender(this);
+            extender.visitUris(visitor);
         }
     }
 
@@ -2959,8 +3020,11 @@ public class Notification implements Parcelable
      *
      * @hide
      */
-    public void setAllowlistToken(@Nullable IBinder token) {
-        mWhitelistToken = token;
+    public void clearAllowlistToken() {
+        mWhitelistToken = null;
+        if (publicVersion != null) {
+            publicVersion.clearAllowlistToken();
+        }
     }
 
     /**
@@ -9785,6 +9849,12 @@ public class Notification implements Parcelable
                 mFlags |= mask;
             } else {
                 mFlags &= ~mask;
+            }
+        }
+
+        private void visitUris(@NonNull Consumer<Uri> visitor) {
+            for (Action action : mActions) {
+                action.visitUris(visitor);
             }
         }
     }

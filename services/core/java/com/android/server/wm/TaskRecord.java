@@ -2452,7 +2452,7 @@ class TaskRecord extends ConfigurationContainer {
         }
 
         if (task.effectiveUid != topActivityUid) {
-            info.topActivity = null;
+            info.topActivity = new ComponentName("", "");
         }
 
         int baseActivityUid = task.effectiveUid;
@@ -2466,7 +2466,7 @@ class TaskRecord extends ConfigurationContainer {
         }
 
         if (task.effectiveUid != baseActivityUid) {
-            info.baseActivity = null;
+            info.baseActivity = new ComponentName("", "");
         }
     }
 

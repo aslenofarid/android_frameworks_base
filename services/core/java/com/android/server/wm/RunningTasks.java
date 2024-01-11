@@ -39,6 +39,8 @@ class RunningTasks {
     private final TreeSet<TaskRecord> mTmpSortedSet = new TreeSet<>(LAST_ACTIVE_TIME_COMPARATOR);
     private final ArrayList<TaskRecord> mTmpStackTasks = new ArrayList<>();
 
+    private boolean mAllowed;
+
     void getTasks(int maxNum, List<RunningTaskInfo> list, @ActivityType int ignoreActivityType,
             @WindowingMode int ignoreWindowingMode, ArrayList<ActivityDisplay> activityDisplays,
             int callingUid, boolean allowed, boolean crossUser, ArraySet<Integer> profileIds) {
@@ -49,6 +51,7 @@ class RunningTasks {
 
         // Gather all of the tasks across all of the tasks, and add them to the sorted set
         mTmpSortedSet.clear();
+        mAllowed = allowed;
         final int numDisplays = activityDisplays.size();
         for (int displayNdx = 0; displayNdx < numDisplays; ++displayNdx) {
             final ActivityDisplay display = activityDisplays.get(displayNdx);
@@ -69,7 +72,7 @@ class RunningTasks {
             }
 
             final TaskRecord task = iter.next();
-            list.add(createRunningTaskInfo(task, allowed));
+            list.add(createRunningTaskInfo(task));
             maxNum--;
         }
     }
@@ -77,13 +80,13 @@ class RunningTasks {
     /**
      * Constructs a {@link RunningTaskInfo} from a given {@param task}.
      */
-    private RunningTaskInfo createRunningTaskInfo(TaskRecord task, boolean allowed) {
+    private RunningTaskInfo createRunningTaskInfo(TaskRecord task) {
         final RunningTaskInfo rti = new RunningTaskInfo();
         task.fillTaskInfo(rti);
         // Fill in some deprecated values
         rti.id = rti.taskId;
 
-        if (!allowed) {
+        if (!mAllowed) {
             TaskRecord.trimIneffectiveInfo(task, rti);
         }
         return rti;
